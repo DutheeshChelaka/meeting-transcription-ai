@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
+from app.api.transcription import router as transcription_router
 
 # Load environment variables from .env file
 load_dotenv()
@@ -44,3 +45,6 @@ async def health_check():
         "status": "healthy",
         "environment": os.getenv("ENVIRONMENT", "development")
     }
+
+# Include API routers
+app.include_router(transcription_router)
