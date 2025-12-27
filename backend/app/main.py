@@ -2,9 +2,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
+import sys
+import io
 from app.api.transcription import router as transcription_router
 from app.api.summarization import router as summarization_router
 
+# Force UTF-8 encoding
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 # Load environment variables from .env file
 load_dotenv()
