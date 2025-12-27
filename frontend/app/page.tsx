@@ -12,6 +12,12 @@ export default function Home() {
   const [error, setError] = useState('')
   const [dragActive, setDragActive] = useState(false)
 
+  const [summary, setSummary] = useState('')
+const [keyPoints, setKeyPoints] = useState<string[]>([])
+const [actionItems, setActionItems] = useState<string[]>([])
+const [decisions, setDecisions] = useState<string[]>([])
+const [summarizing, setSummarizing] = useState(false)
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       setFile(e.target.files[0])
@@ -40,42 +46,72 @@ export default function Home() {
     }
   }
 
-  const handleTranscribe = async () => {
-    if (!file) {
-      setError('Please select a file first')
-      return
-    }
-
-    setLoading(true)
-    setError('')
-    setTranscript('')
-
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-
-      const response = await axios.post(
-        'http://localhost:8000/api/transcribe',
-        formData,
-        {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        }
-      )
-
-      if (response.data.success) {
-        setTranscript(response.data.transcript)
-        setLanguage(response.data.language)
-      } else {
-        setError(response.data.error || 'Transcription failed')
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.detail || 'Error uploading file')
-    } finally {
-      setLoading(false)
-    }
+const handleTranscribe = async () => {
+  if (!file) {
+    setError('Please select a file first')
+    return
   }
+
+  setLoading(true)
+  setError('')
+  setTranscript('')
+  setSummary('')
+  setKeyPoints([])
+  setActionItems([])
+  setDecisions([])
+
+  try {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    // Step 1: Transcribe
+    const transcribeResponse = await axios.post(
+      'http://localhost:8000/api/transcribe',
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      }
+    )
+
+    if (transcribeResponse.data.success) {
+      const transcriptText = transcribeResponse.data.transcript
+      setTranscript(transcriptText)
+      setLanguage(transcribeResponse.data.language)
+      
+      // Step 2: Summarize automatically
+      setSummarizing(true)
+      try {
+        const summarizeResponse = await axios.post(
+          'http://localhost:8000/api/summarize',
+          {
+            transcript: transcriptText,
+            quick: false
+          }
+        )
+
+        if (summarizeResponse.data.success) {
+          setSummary(summarizeResponse.data.summary)
+          setKeyPoints(summarizeResponse.data.key_points || [])
+          setActionItems(summarizeResponse.data.action_items || [])
+          setDecisions(summarizeResponse.data.decisions || [])
+        }
+      } catch (summaryErr) {
+        console.error('Summarization error:', summaryErr)
+        // Don't show error - summarization is optional
+      } finally {
+        setSummarizing(false)
+      }
+    } else {
+      setError(transcribeResponse.data.error || 'Transcription failed')
+    }
+  } catch (err: any) {
+    setError(err.response?.data?.detail || 'Error uploading file')
+  } finally {
+    setLoading(false)
+  }
+}
 
   return (
     <div className="min-h-screen bg-black text-white p-8 relative overflow-hidden">
@@ -209,30 +245,141 @@ export default function Home() {
         </div>
 
         {/* Results Section */}
-        {transcript && (
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl animate-slide-up hover:shadow-green-500/10 transition-all duration-500">
+{transcript && (
+  <div className="space-y-6">
+    {/* Transcript */}
+    <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl animate-slide-up hover:shadow-green-500/10 transition-all duration-500">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center animate-bounce-in shadow-lg shadow-green-500/50">
+          <CheckCircle2 className="w-5 h-5 text-white" />
+        </div>
+        <h2 className="text-2xl font-semibold text-white">Transcription</h2>
+      </div>
+      
+      {language && (
+        <div className="mb-4 animate-fade-in">
+          <span className="inline-block bg-gradient-to-r from-cyan-500/20 to-purple-500/20 border border-cyan-500/30 text-cyan-300 text-sm font-medium px-4 py-2 rounded-full backdrop-blur-sm hover:scale-105 transition-transform duration-200">
+            Language: {language.toUpperCase()}
+          </span>
+        </div>
+      )}
+      
+      <div className="bg-black/30 backdrop-blur-sm rounded-2xl p-6 border border-white/10 hover:border-white/20 transition-colors duration-300">
+        <p className="text-gray-100 whitespace-pre-wrap leading-relaxed text-lg">
+          {transcript}
+        </p>
+      </div>
+    </div>
+
+    {/* AI Summary Section */}
+    {summarizing && (
+      <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl animate-slide-up">
+        <div className="flex items-center gap-3">
+          <Loader2 className="w-6 h-6 text-purple-400 animate-spin" />
+          <p className="text-gray-300">Generating AI summary...</p>
+        </div>
+      </div>
+    )}
+
+    {summary && !summarizing && (
+      <>
+        {/* Executive Summary */}
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl animate-slide-up hover:shadow-purple-500/10 transition-all duration-500">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-400 to-pink-500 flex items-center justify-center shadow-lg shadow-purple-500/50">
+              <Sparkles className="w-5 h-5 text-white" />
+            </div>
+            <h2 className="text-2xl font-semibold text-white">AI Summary</h2>
+          </div>
+          
+          <div className="bg-gradient-to-br from-purple-500/10 to-pink-500/10 backdrop-blur-sm rounded-2xl p-6 border border-purple-500/20">
+            <p className="text-gray-100 leading-relaxed text-lg">
+              {summary}
+            </p>
+          </div>
+        </div>
+
+        {/* Key Points */}
+        {keyPoints.length > 0 && (
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl animate-slide-up hover:shadow-cyan-500/10 transition-all duration-500">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center animate-bounce-in shadow-lg shadow-green-500/50">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center shadow-lg shadow-cyan-500/50">
                 <CheckCircle2 className="w-5 h-5 text-white" />
               </div>
-              <h2 className="text-2xl font-semibold text-white">Transcription Result</h2>
+              <h2 className="text-2xl font-semibold text-white">Key Points</h2>
             </div>
             
-            {language && (
-              <div className="mb-4 animate-fade-in">
-                <span className="inline-block bg-gradient-to-r from-cyan-500/20 to-purple-500/20 border border-cyan-500/30 text-cyan-300 text-sm font-medium px-4 py-2 rounded-full backdrop-blur-sm hover:scale-105 transition-transform duration-200">
-                  Language: {language.toUpperCase()}
-                </span>
-              </div>
-            )}
-            
-            <div className="bg-black/30 backdrop-blur-sm rounded-2xl p-6 border border-white/10 hover:border-white/20 transition-colors duration-300">
-              <p className="text-gray-100 whitespace-pre-wrap leading-relaxed text-lg animate-typing">
-                {transcript}
-              </p>
+            <div className="space-y-3">
+              {keyPoints.map((point, index) => (
+                <div 
+                  key={index}
+                  className="bg-black/30 backdrop-blur-sm rounded-xl p-4 border border-cyan-500/20 hover:border-cyan-500/40 transition-colors duration-300 flex items-start gap-3"
+                >
+                  <div className="w-6 h-6 rounded-full bg-cyan-500/20 flex items-center justify-center flex-shrink-0 mt-1">
+                    <span className="text-cyan-300 text-sm font-semibold">{index + 1}</span>
+                  </div>
+                  <p className="text-gray-100 leading-relaxed flex-1">{point}</p>
+                </div>
+              ))}
             </div>
           </div>
         )}
+
+        {/* Action Items */}
+        {actionItems.length > 0 && (
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl animate-slide-up hover:shadow-orange-500/10 transition-all duration-500">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-400 to-red-500 flex items-center justify-center shadow-lg shadow-orange-500/50">
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              <h2 className="text-2xl font-semibold text-white">Action Items</h2>
+            </div>
+            
+            <div className="space-y-3">
+              {actionItems.map((item, index) => (
+                <div 
+                  key={index}
+                  className="bg-black/30 backdrop-blur-sm rounded-xl p-4 border border-orange-500/20 hover:border-orange-500/40 transition-colors duration-300 flex items-start gap-3"
+                >
+                  <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0 mt-1">
+                    <Zap className="w-4 h-4 text-orange-300" />
+                  </div>
+                  <p className="text-gray-100 leading-relaxed flex-1">{item}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Decisions */}
+        {decisions.length > 0 && (
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl animate-slide-up hover:shadow-green-500/10 transition-all duration-500">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-green-400 to-emerald-500 flex items-center justify-center shadow-lg shadow-green-500/50">
+                <CheckCircle2 className="w-5 h-5 text-white" />
+              </div>
+              <h2 className="text-2xl font-semibold text-white">Decisions Made</h2>
+            </div>
+            
+            <div className="space-y-3">
+              {decisions.map((decision, index) => (
+                <div 
+                  key={index}
+                  className="bg-black/30 backdrop-blur-sm rounded-xl p-4 border border-green-500/20 hover:border-green-500/40 transition-colors duration-300 flex items-start gap-3"
+                >
+                  <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0 mt-1">
+                    <CheckCircle2 className="w-4 h-4 text-green-300" />
+                  </div>
+                  <p className="text-gray-100 leading-relaxed flex-1">{decision}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </>
+    )}
+  </div>
+)}
       </div>
 
       <style jsx>{`

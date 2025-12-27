@@ -3,6 +3,8 @@ from fastapi.middleware.cors import CORSMiddleware
 import os
 from dotenv import load_dotenv
 from app.api.transcription import router as transcription_router
+from app.api.summarization import router as summarization_router
+
 
 # Load environment variables from .env file
 load_dotenv()
@@ -48,3 +50,4 @@ async def health_check():
 
 # Include API routers
 app.include_router(transcription_router)
+app.include_router(summarization_router)
