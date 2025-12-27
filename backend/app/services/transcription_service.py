@@ -1,4 +1,4 @@
-import assemblyai as aai
+import openai
 import os
 from typing import Optional
 from dotenv import load_dotenv
@@ -6,20 +6,20 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Set AssemblyAI API key
-aai.settings.api_key = os.getenv("ASSEMBLYAI_API_KEY")
+# Set OpenAI API key
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
 class TranscriptionService:
     """
-    Service for handling audio transcription using AssemblyAI
+    Service for handling audio transcription using OpenAI Whisper API
     """
     
     def __init__(self):
         """Initialize the transcription service"""
-        self.api_key = os.getenv("ASSEMBLYAI_API_KEY")
+        self.api_key = os.getenv("OPENAI_API_KEY")
         if not self.api_key:
-            raise ValueError("ASSEMBLYAI_API_KEY not found in environment variables")
+            raise ValueError("OPENAI_API_KEY not found in environment variables")
     
     async def transcribe_audio(
         self, 
@@ -27,47 +27,46 @@ class TranscriptionService:
         language: Optional[str] = None
     ) -> dict:
         """
-        Transcribe audio file using AssemblyAI
+        Transcribe audio file using OpenAI Whisper
         
         Args:
             audio_file_path: Path to the audio file
-            language: Optional language code (e.g., 'en', 'es', 'fr')
+            language: Optional language code (e.g., 'en', 'si', 'ta')
         
         Returns:
             Dictionary with transcript and metadata
         """
         try:
-            # Configure transcription settings
-            config = aai.TranscriptionConfig(
-                language_code=language if language else None,
-                speaker_labels=True  # Enable speaker diarization
-            )
+            print("=" * 50)
+            print("TRANSCRIBING WITH OPENAI WHISPER...")
+            print(f"Audio file: {audio_file_path}")
+            print("=" * 50)
             
-            # Create transcriber
-            transcriber = aai.Transcriber(config=config)
+            # Open and read the audio file
+            with open(audio_file_path, "rb") as audio_file:
+                # Call OpenAI Whisper API
+                transcript = openai.audio.transcriptions.create(
+                    model="whisper-1",
+                    file=audio_file,
+                    language=language,  # Optional: specify language
+                    response_format="verbose_json"  # Get detailed response
+                )
             
-            # Transcribe audio file
-            transcript = transcriber.transcribe(audio_file_path)
-            
-            # Check if transcription was successful
-            if transcript.status == aai.TranscriptStatus.error:
-                return {
-                    "success": False,
-                    "error": transcript.error,
-                    "transcript": None
-                }
+            print("Whisper transcription successful!")
+            print(f"Language detected: {transcript.language}")
+            print("=" * 50)
             
             # Return structured response
             return {
                 "success": True,
                 "transcript": transcript.text,
-                "language": transcript.language_code if hasattr(transcript, 'language_code') else 'en',
-                "confidence": transcript.confidence if hasattr(transcript, 'confidence') else None,
-                "words": len(transcript.words) if transcript.words else 0,
-                "audio_duration": transcript.audio_duration if hasattr(transcript, 'audio_duration') else None
+                "language": transcript.language,
+                "duration": transcript.duration if hasattr(transcript, 'duration') else None,
+                "segments": transcript.segments if hasattr(transcript, 'segments') else None
             }
         
         except FileNotFoundError:
+            print("ERROR: Audio file not found")
             return {
                 "success": False,
                 "error": "Audio file not found",
@@ -75,6 +74,13 @@ class TranscriptionService:
             }
         
         except Exception as e:
+            print("=" * 50)
+            print("TRANSCRIPTION ERROR:")
+            print(f"Error type: {type(e).__name__}")
+            print(f"Error message: {str(e)}")
+            print("=" * 50)
+            import traceback
+            traceback.print_exc()
             return {
                 "success": False,
                 "error": str(e),
@@ -83,24 +89,20 @@ class TranscriptionService:
     
     async def get_supported_languages(self) -> list:
         """
-        Return list of commonly supported languages
+        Return list of supported languages
         
         Returns:
             List of language codes
         """
         return [
             "en",  # English
+            "si",  # Sinhala ✅ NOW SUPPORTED!
+            "ta",  # Tamil ✅ NOW SUPPORTED!
             "es",  # Spanish
             "fr",  # French
             "de",  # German
-            "it",  # Italian
-            "pt",  # Portuguese
-            "nl",  # Dutch
-            "hi",  # Hindi
-            "ja",  # Japanese
             "zh",  # Chinese
+            "ja",  # Japanese
             "ko",  # Korean
-            "ru",  # Russian
-            "ar",  # Arabic
-            # AssemblyAI supports 99+ languages!
+            # Whisper supports 99+ languages!
         ]
